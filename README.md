@@ -8,7 +8,7 @@ a simple command line application that uses [eris-rs](https://github.com/mguentn
 $ eris-cli --file testfile.100mb --store ./eris-store -b 32 -e
 urn:erisx2:B4BEGXI42YAMGDXNAUCB2WIIJQSCLKXJUPN2SDY4AN6NXODA4PH7WY7DHUJ2AI65QKSLXMSLQ42DY64B2ZML7I4YOKP53EOAQCODHCI4IM
 
-$ ./target/release/eris-cli --file outfile --store ./eris-store -d -u urn:erisx2:B4BEGXI42YAMGDXNAUCB2WIIJQSCLKXJUPN2SDY4AN6NXODA4PH7WY7DHUJ2AI65QKSLXMSLQ42DY64B2ZML7I4YOKP53EOAQCODHCI4IM
+$ eris-cli --file outfile --store ./eris-store -d -u urn:erisx2:B4BEGXI42YAMGDXNAUCB2WIIJQSCLKXJUPN2SDY4AN6NXODA4PH7WY7DHUJ2AI65QKSLXMSLQ42DY64B2ZML7I4YOKP53EOAQCODHCI4IM
 done.
 
 $ sha256sum testfile.100mb outfile
