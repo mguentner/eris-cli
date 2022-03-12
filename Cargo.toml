@@ -1,0 +1,12 @@
+[package]
+name = "eris-cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+base32 = "~0.4.0"
+blake2b_simd = "1.0.0"
+clap = { version = "3.0.14", features = ["derive"] }
+eris-rs = "0.1.0"
