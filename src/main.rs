@@ -116,18 +116,13 @@ fn main() {
                 result
             }
         };
-        if file_name == "-" {
-            let mut stdin = io::stdin();
-            match encode(&mut stdin, block_size, &convergence_secret, store_dir) {
-                Ok(read_capability) => eprintln!("{}", read_capability.to_urn()),
-                Err(e) => panic!("{}", e),
-            }
-        } else {
-            let mut file = File::open(file_name).unwrap();
-            match encode(&mut file, block_size, &convergence_secret, store_dir) {
-                Ok(read_capability) => eprintln!("{}", read_capability.to_urn()),
-                Err(e) => panic!("{}", e),
-            }
+        let mut reader: Box<dyn Read> = match file_name.as_str() {
+            "-" => Box::new(io::stdin()),
+            _ => Box::new(File::open(file_name).unwrap())
+        };
+        match encode(&mut reader, block_size, &convergence_secret, store_dir) {
+            Ok(read_capability) => eprintln!("{}", read_capability.to_urn()),
+            Err(e) => panic!("{}", e),
         }
     } else {
         // decode
