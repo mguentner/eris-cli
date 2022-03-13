@@ -1,12 +1,13 @@
 use clap::App;
 use clap::Arg;
-use std::io::Read;
 use eris_rs::types::BlockStorageError;
 use eris_rs::types::BlockStorageErrorKind;
 use eris_rs::types::Reference;
 use eris_rs;
 use std::fs::File;
+use std::io::Read;
 use std::io::Write;
+use std::io;
 use std::path::PathBuf;
 
 
@@ -22,7 +23,7 @@ fn reference_to_path(eris_store: &str, reference: eris_rs::types::Reference) -> 
 }
 
 fn encode(
-    mut file: std::fs::File,
+    reader: &mut dyn std::io::Read,
     block_size: eris_rs::types::BlockSize,
     convergence_secret: &[u8],
     target_directory: String,
@@ -43,12 +44,12 @@ fn encode(
                     }
                 }
             };
-    return eris_rs::encode::encode(&mut file, convergence_secret, block_size, &write_fn);
+    return eris_rs::encode::encode(reader, convergence_secret, block_size, &write_fn);
 }
 
 fn decode(
     eris_store_dir: String,
-    mut target: std::fs::File,
+    target: &mut dyn std::io::Write,
     read_capability: eris_rs::types::ReadCapability,
 ) -> Result<usize, std::io::Error> {
     let eris_get_fn = move |reference: Reference| -> Result<Vec<u8>, BlockStorageError> {
@@ -68,7 +69,7 @@ fn decode(
         }
     };
 
-    return eris_rs::decode::decode(read_capability, &mut target, &eris_get_fn);
+    return eris_rs::decode::decode(read_capability, target, &eris_get_fn);
 }
 
 fn main() {
@@ -91,38 +92,42 @@ fn main() {
             Some(b) => panic!("unexpected block size: {}", b),
             None => panic!("Expected a block-size")
         };
-        match File::open(file_name) {
-            Ok(f) => {
-                let convergence_secret: [u8; 32] = match m.value_of("convergence-secret") {
-                    Some(cs) => {
-                        let base32_alphabet = base32::Alphabet::RFC4648 { padding: false };
-                        match base32::decode(base32_alphabet, cs) {
-                            Some(v) => {
-                                let mut result: [u8; 32] = Default::default();
-                                if v.len() == eris_rs::constants::KEY_SIZE_BYTES {
-                                    result.copy_from_slice(&v);
-                                    result
-                                } else {
-                                    panic!("convergence secret not of correct length")
-                                }
-                            },
-                            None => {
-                                panic!("Failed to parse convergence-secret")
-                            }
+        let convergence_secret: [u8; 32] = match m.value_of("convergence-secret") {
+            Some(cs) => {
+                let base32_alphabet = base32::Alphabet::RFC4648 { padding: false };
+                match base32::decode(base32_alphabet, cs) {
+                    Some(v) => {
+                        let mut result: [u8; 32] = Default::default();
+                        if v.len() == eris_rs::constants::KEY_SIZE_BYTES {
+                            result.copy_from_slice(&v);
+                            result
+                        } else {
+                            panic!("convergence secret not of correct length")
                         }
                     },
                     None => {
-                        let mut result: [u8; 32] = Default::default();
-                        result.fill(0);
-                        result
+                        panic!("Failed to parse convergence-secret")
                     }
-                };
-                match encode(f, block_size, &convergence_secret, store_dir) {
-                    Ok(read_capability) => println!("{}", read_capability.to_urn()),
-                    Err(e) => panic!("{}", e),
                 }
+            },
+            None => {
+                let mut result: [u8; 32] = Default::default();
+                result.fill(0);
+                result
             }
-            Err(e) => panic!("{}", e),
+        };
+        if file_name == "-" {
+            let mut stdin = io::stdin();
+            match encode(&mut stdin, block_size, &convergence_secret, store_dir) {
+                Ok(read_capability) => eprintln!("{}", read_capability.to_urn()),
+                Err(e) => panic!("{}", e),
+            }
+        } else {
+            let mut file = File::open(file_name).unwrap();
+            match encode(&mut file, block_size, &convergence_secret, store_dir) {
+                Ok(read_capability) => eprintln!("{}", read_capability.to_urn()),
+                Err(e) => panic!("{}", e),
+            }
         }
     } else {
         // decode
@@ -131,14 +136,27 @@ fn main() {
             Some(v) => v,
             None => panic!("Not an urn")
         };
-        match File::create(file_name) {
-            Ok(f) => {
-                match decode(store_dir, f, read_capability) {
-                    Ok(_) => println!("done."),
-                    Err(e) => println!("error while decoding: {}", e)
-                }
-            },
-            Err(e) => println!("could not create file: {}", e)
+        if file_name == "-" {
+            let stdout =  io::stdout();
+            let mut handle = stdout.lock();
+            match decode(store_dir, &mut handle, read_capability) {
+                Ok(_) => {
+                    // stdout is a BufWriter, a final flush is necessary
+                    handle.flush().unwrap();
+                    eprintln!("done.")
+                },
+                Err(e) => eprintln!("error while decoding: {}", e)
+            }
+        } else {
+            match File::create(file_name) {
+                Ok(mut f) => {
+                    match decode(store_dir, &mut f, read_capability) {
+                        Ok(_) => eprintln!("done."),
+                        Err(e) => eprintln!("error while decoding: {}", e)
+                    }
+                },
+                Err(e) => eprintln!("could not create file: {}", e)
+            }
         }
     }
 }
